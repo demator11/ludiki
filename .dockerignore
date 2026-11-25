@@ -1,0 +1,11 @@
+.git
+.idea
+.venv
+__pycache__
+data
+work
+.env
+.env.server
+backups
+*.tar.gz
+tests

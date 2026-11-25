@@ -1,0 +1,15 @@
+{
+    # IP clients omit SNI; Docker's private address must not be used instead.
+    default_sni {$SITE_DOMAIN}
+}
+
+{$SITE_DOMAIN} {
+    tls {
+        issuer acme {
+            dir https://acme-v02.api.letsencrypt.org/directory
+            profile shortlived
+        }
+    }
+    encode zstd gzip
+    reverse_proxy ludiki:8000
+}
