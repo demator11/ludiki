@@ -8,7 +8,7 @@ import websockets
 
 async def check(base):
     base = base.rstrip('/')
-    for path in ['/api/health', '/screen', '/play', '/admin', '/static/app.js', '/static/style.css', '/api/qr']:
+    for path in ['/api/health', '/screen', '/play', '/admin', '/static/app.js', '/static/experience.js', '/static/copy.js', '/static/text-editor.js', '/static/text-catalog.json', '/static/style.css', '/api/qr']:
         with urlopen(base + path, timeout=15) as response:
             assert response.status == 200, path
             if path == '/api/health':

@@ -50,6 +50,19 @@ async def run(port, password):
         start=time.perf_counter()
         for _ in range(8): await asyncio.gather(*(action(c,"play",choice="heads") for c in clients))
         elapsed=time.perf_counter()-start
+        # Publishing copy broadcasts to connected phones without changing their game.
+        before=(await host.get("/api/state?role=admin")).json()
+        catalog=(await host.get('/static/text-catalog.json')).json()
+        label=next(r for r in catalog if r['default']=='Орёл')['id']
+        saved=await admin('texts',expected_version=before['config']['text_version'],texts={label:'Сторона A'},fields={'title':'Проверка редактора'})
+        assert saved['stats']==before['stats'] and saved['epoch']==before['epoch'] and saved['phase']==before['phase']
+        for client in clients:
+            phone=(await client.get('/api/state')).json()
+            assert phone['texts']=={label:'Сторона A'} and len(phone['me']['house'])==8
+        stale=await host.post('/api/admin/action',json={'action':'texts','expected_version':before['config']['text_version'],'texts':{}})
+        assert stale.status_code==400
+        reset=await admin('texts',expected_version=saved['config']['text_version'],texts={},fields={'title':before['title']})
+        assert reset['texts']=={} and reset['stats']==before['stats']
         current=await admin("simulate_house")
         assert current["phase"]=="reveal" and current["house_view"]=="simulation"
         screen=(await host.get("/api/state?role=screen")).json()
@@ -76,7 +89,7 @@ async def run(port, password):
         assert (await clients[0].get("/api/admin/export")).status_code==401
         assert (await host.post("/api/admin/action",headers={"Origin":"http://evil.example"},json={"action":"demo"})).status_code==403
         qr=await host.get("/api/qr"); assert qr.status_code==200 and "<svg" in qr.text
-        for path in ["/","/play","/screen","/admin","/static/app.js","/static/experience.js","/static/style.css"]:
+        for path in ["/","/play","/screen","/admin","/static/app.js","/static/experience.js","/static/style.css","/static/copy.js","/static/text-editor.js","/static/text-catalog.json"]:
             assert (await host.get(path)).status_code==200
         # The fallback progresses on the server even without an open host tab.
         real_stats=current["stats"]

@@ -180,6 +180,7 @@ class RoomTests(unittest.TestCase):
         config["enabled"]=["near"]
         self.room.admin_action({"action":"config","config":config})
         self.assertEqual(self.room.state["scene"],"lobby")
+        config=copy.deepcopy(self.room.state["config"])
         bad=copy.deepcopy(config); bad["public_url"]="javascript:alert(1)"
         with self.assertRaises(ValueError): self.room.admin_action({"action":"config","config":bad})
         self.assertEqual(self.room.state["config"],config)

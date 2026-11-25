@@ -9,6 +9,7 @@ let previewObserver = null, observedPreview = null, hostTab = 'controls';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num = (v, digits = 0) => v == null ? '—' : Number(v).toLocaleString('ru-RU', {maximumFractionDigits:digits});
 const signed = v => `${v > 0 ? '+' : ''}${num(v, 2)}`;
+const displayTitle = title => title==='Казино под микроскопом'?'Казино под<br><span>микроскопом.</span>':esc(title);
 const brand = () => '<a class="brand-text" href="/">Психология игры</a>';
 const button = (label, action, extra = '', cls = '', disabled = false) => `<button type="button" class="btn ${cls}" data-action="${action}" ${extra} ${disabled ? 'disabled' : ''}>${label}</button>`;
 const joinURL = () => (state.public_url || location.origin) + '/play';
@@ -17,7 +18,7 @@ const phaseLabel = () => state.paused ? 'Пауза' : ({intro:'Перед на�
 
 function toast(message) {
   const node = document.getElementById('toast');
-  node.textContent = message; node.classList.add('visible');
+  node.textContent = Copy.text(message); node.classList.add('visible');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => node.classList.remove('visible'), 5000);
 }
 
@@ -40,6 +41,7 @@ function accept(next) {
   if (state && next.revision < state.revision) return;
   const changed = state && (next.epoch !== state.epoch || next.scene !== state.scene || next.phase !== state.phase || next.paused !== state.paused || next.demo !== state.demo);
   if (changed) { selectedRating = null; }
+  Copy.set(next.texts);
   Experience.sync(next);
   state = next;
   render(!!changed, !!changed);
@@ -47,11 +49,11 @@ function accept(next) {
 
 function setConnection(text = '') {
   const el = document.getElementById('connection');
-  el.textContent = text; el.hidden = !text;
+  el.textContent = Copy.text(text); el.hidden = !text;
   if (text && role === 'admin' && !['localhost','127.0.0.1'].includes(location.hostname)) {
     const link = document.createElement('a');
     link.href = 'http://localhost:8000/admin'; link.target = '_blank'; link.rel = 'noopener';
-    link.textContent = 'Открыть подготовленный резерв на ноутбуке'; el.append(' ', link);
+    link.textContent = Copy.text('Открыть подготовленный резерв на ноутбуке'); el.append(' ', link);
   }
 }
 
@@ -78,7 +80,7 @@ async function command(action, extra = {}, participant = false) {
   document.querySelectorAll('[data-action],button[type="submit"]').forEach(el => el.disabled = true);
   if (action.startsWith('simulate')) {
     const trigger = document.querySelector(`[data-action="${action}"]`);
-    if (trigger) trigger.textContent = 'Выполняется расчёт…';
+    if (trigger) trigger.textContent = Copy.text('Выполняется расчёт…');
   }
   try {
     const payload = participant ? {action, ...extra, epoch:state.epoch, nonce:globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`} : {action,...extra};
@@ -107,53 +109,57 @@ function render(force = false, resetForm = false) {
   }
 }
 
-function renderHome() {
-  document.title = 'Казино под микроскопом';
-  app.innerHTML = `<header class="topbar">${brand()}<div class="row"><span class="muted">Интерактивная лаборатория</span><span class="tag">Два эксперимента</span></div></header>
-  <main class="home"><section class="hero"><div class="hero-copy"><div class="eyebrow">Психология × вероятность × интерфейс</div><h1>Казино под<br><span>микроскопом.</span></h1><p>Два эксперимента о случайности, ощущении выигрыша и правилах игры. У каждого — свой экран. У всех — общая история.</p><div class="row"><a class="btn primary" href="/admin">Открыть пульт ведущего</a><a class="btn" href="/screen" target="_blank" rel="noopener">Экран аудитории</a></div></div>
+function homeMarkup() {
+  return `<header class="topbar">${brand()}<div class="row"><span class="muted">Интерактивная лаборатория</span><span class="tag">Два эксперимента</span></div></header>
+  <main class="home"><section class="hero"><div class="hero-copy"><div class="eyebrow">Психология × вероятность × интерфейс</div><h1 data-copy-skip>${displayTitle(state.title)}</h1><p>Два эксперимента о случайности, ощущении выигрыша и правилах игры. У каждого — свой экран. У всех — общая история.</p><div class="row"><a class="btn primary" href="/admin">Открыть пульт ведущего</a><a class="btn" href="/screen" target="_blank" rel="noopener">Экран аудитории</a></div></div>
   <div class="hero-art" aria-label="При честной монетке выигрыш плюс 9, проигрыш минус 10"><span class="art-note">ВЕРОЯТНОСТЬ ОДИНАКОВАЯ. РЕЗУЛЬТАТ — НЕТ.</span><div class="coin">+9</div><div class="coin second">−10</div><span class="art-bottom">50 / 50 · заглянем внутрь</span></div></section>
   <section><div class="section-line"><h2>Одна комната. Три точки зрения.</h2><span class="muted">Без регистрации участников</span></div><div class="entry-grid">
   <a class="entry" href="/play"><div class="entry-icon">◉</div><h3>Участник</h3><p>Сделать выбор, оценить результат и отправить свой ответ с телефона.</p><span class="entry-label">Мобильный экран</span></a>
   <a class="entry" href="/screen" target="_blank" rel="noopener"><div class="entry-icon">▣</div><h3>Аудитория</h3><p>Общий вопрос, QR-код и результаты, которые открывает ведущий.</p><span class="entry-label">Проектор / большой экран</span></a>
   <a class="entry" href="/admin"><div class="entry-icon">☷</div><h3>Ведущий</h3><p>Управлять темпом, редактировать тексты и менять программу по ходу.</p><span class="entry-label">Пульт управления</span></a></div></section>
-  <section><div class="section-line"><h2>Программа-конструктор</h2><span class="muted">Можно оставить только нужные модули</span></div><div class="module-grid">${Object.entries(state.modules).map(([id,m])=>`<article class="module-card"><small>${esc(m.minutes)}</small><h3>${esc(m.title)}</h3><p>${esc(m.subtitle)}</p></article>`).join('')}</div></section>
+  <section><div class="section-line"><h2>Программа-конструктор</h2><span class="muted">Можно оставить только нужные модули</span></div><div class="module-grid">${Object.entries(state.modules).map(([id,m])=>`<article class="module-card"><small data-copy-skip>${esc(m.minutes)}</small><h3 data-copy-skip>${esc(m.title)}</h3><p data-copy-skip>${esc(m.subtitle)}</p></article>`).join('')}</div></section>
   <footer class="home-footer"><span>Учебный проект о механиках азартных игр</span><span>Только условные очки · результаты не являются диагностикой</span></footer></main>`;
 }
 
-function renderLogin(error = '') {
-  app.innerHTML = `<main class="auth-wrap"><section class="auth">${brand()}<div class="stack"><span class="eyebrow">За сценой</span><h1>Пульт ведущего</h1><p>Здесь начинается интерактив: сцены, ответы аудитории и быстрые правки.</p></div><form id="login-form"><label class="form-field"><span>Пароль ведущего</span><input name="password" type="password" required autocomplete="current-password" placeholder="Введите пароль"></label>${error ? `<p class="error-inline" role="alert">${esc(error)}</p>` : ''}<button class="btn primary" type="submit">Войти в пульт</button></form><p class="help">При первом запуске пароль создаётся в <code>data/admin-key.txt</code>.<br>Docker: <code>docker compose exec ludiki cat /app/data/admin-key.txt</code></p><a class="btn ghost" href="/">На главную</a></section></main>`;
+function renderHome(){document.title=state.title;app.innerHTML=Copy.html(homeMarkup());}
+
+function loginMarkup(error = '') {
+  return `<main class="auth-wrap"><section class="auth">${brand()}<div class="stack"><span class="eyebrow">За сценой</span><h1>Пульт ведущего</h1><p>Здесь начинается интерактив: сцены, ответы аудитории и быстрые правки.</p></div><form id="login-form"><label class="form-field"><span>Пароль ведущего</span><input name="password" type="password" required autocomplete="current-password" placeholder="Введите пароль"></label>${error ? `<p class="error-inline" role="alert">${esc(error)}</p>` : ''}<button class="btn primary" type="submit">Войти в пульт</button></form><p class="help">При первом запуске пароль создаётся в <code>data/admin-key.txt</code>.<br>Docker: <code>docker compose exec ludiki cat /app/data/admin-key.txt</code></p><a class="btn ghost" href="/">На главную</a></section></main>`;
 }
 
-function renderAdmin() {
+function renderLogin(error=''){app.innerHTML=Copy.html(loginMarkup(error));}
+
+function adminMarkup() {
   const s=state, scene=s.scene, m=s.modules[scene], isModule=!!m, progress=s.progress[scene]||0;
-  document.title='Пульт ведущего — Психология игры';
   const names={lobby:'Сбор',house:'Монетка',near:'Почти',finish:'Итог'};
-  const sceneButton=(id,index)=>`<button class="scene-btn ${scene===id?'active':''}" data-action="scene" data-scene="${id}" aria-current="${scene===id?'step':'false'}"><span class="scene-index">${index}</span><span class="scene-full">${esc(s.modules[id]?.title||({lobby:'Сбор аудитории',finish:'Обсуждение'}[id]))}</span><span class="scene-short">${names[id]}</span></button>`;
-  const markup=`<div class="admin-shell host-tab-${hostTab}"><aside class="sidebar">${brand()}<div class="side-caption">Ход выступления</div><nav class="scene-list" aria-label="Сцены">${sceneButton('lobby','◎')}${s.enabled.map((id,i)=>sceneButton(id,String(i+1).padStart(2,'0'))).join('')}${sceneButton('finish','✓')}</nav><div class="sidebar-bottom">${button('Настроить программу','settings','','wide')}${button('Выйти из пульта','logout','','ghost wide')}<p class="sidebar-note">Два интерактива · до 80 участников.<br>Изменения сохраняются автоматически.</p></div></aside>
-  <main class="admin-main"><header class="admin-header"><div><h1>Пульт ведущего</h1><p>${esc(s.title)}</p></div><div class="row">${demoTag()}<span class="tag">${phaseLabel()}</span><a class="btn small desktop-link" href="/screen" target="_blank" rel="noopener">Открыть проектор</a></div></header>
+  const sceneButton=(id,index)=>`<button class="scene-btn ${scene===id?'active':''}" data-action="scene" data-scene="${id}" aria-current="${scene===id?'step':'false'}"><span class="scene-index">${index}</span><span class="scene-full" ${s.modules[id]?'data-copy-skip':''}>${esc(s.modules[id]?.title||({lobby:'Сбор аудитории',finish:'Обсуждение'}[id]))}</span><span class="scene-short">${names[id]}</span></button>`;
+  const markup=`<div class="admin-shell host-tab-${hostTab}"><aside class="sidebar">${brand()}<div class="side-caption">Ход выступления</div><nav class="scene-list" aria-label="Сцены">${sceneButton('lobby','◎')}${s.enabled.map((id,i)=>sceneButton(id,String(i+1).padStart(2,'0'))).join('')}${sceneButton('finish','✓')}</nav><div class="sidebar-bottom">${button('Редактор надписей','edit-texts','','primary wide')}${button('Настроить программу','settings','','wide')}${button('Выйти из пульта','logout','','ghost wide')}<p class="sidebar-note">Два интерактива · до 80 участников.<br>Изменения сохраняются автоматически.</p></div></aside>
+  <main class="admin-main"><header class="admin-header"><div><h1>Пульт ведущего</h1><p data-copy-skip>${esc(s.title)}</p></div><div class="row">${demoTag()}<span class="tag">${phaseLabel()}</span><a class="btn small desktop-link" href="/screen" target="_blank" rel="noopener">Открыть проектор</a></div></header>
   <div class="host-layout"><section class="host-preview"><div class="panel preview-panel"><div class="panel-title"><span>Сейчас на проекторе</span><span class="muted">Точное превью</span></div><div class="slide-preview" id="slide-preview"><iframe id="projector-preview" title="Точный экран проектора" sandbox="allow-same-origin" tabindex="-1"></iframe></div><div class="phase-strip"><div class="phase-steps"><span class="${s.phase==='intro'?'active':''}">Вступление</span><span class="${s.phase==='running'?'active':''}">Ответы</span><span class="${s.phase==='reveal'?'active':''}">Разбор</span></div><span class="muted">${esc(m?.minutes||'Без таймера')}</span></div></div><a class="btn wide mobile-projector" href="/screen" target="_blank" rel="noopener">Открыть экран аудитории</a></section>
-  <section class="host-controls stack"><div class="panel"><div class="panel-title">${esc(m?.title||({lobby:'Сбор аудитории',finish:'Обсуждение'}[scene]))}</div><div class="control-buttons">${button(s.phase==='running'?'Сцена запущена':s.demo?'Запустить ботов':'Начать эксперимент','start','','primary wide',!isModule||s.phase==='running')}<div class="two">${button(s.paused?'Продолжить':'Пауза','pause','','',s.phase!=='running')}${button('Следующая сцена','next','','',scene==='finish')}</div>${button('Раскрыть результаты','reveal','','dark wide',!isModule||s.phase==='reveal')}
+  <section class="host-controls stack"><div class="panel"><div class="panel-title" ${m?'data-copy-skip':''}>${esc(m?.title||({lobby:'Сбор аудитории',finish:'Обсуждение'}[scene]))}</div><div class="control-buttons">${button(s.phase==='running'?'Сцена запущена':s.demo?'Запустить ботов':'Начать эксперимент','start','','primary wide',!isModule||s.phase==='running')}<div class="two">${button(s.paused?'Продолжить':'Пауза','pause','','',s.phase!=='running')}${button('Следующая сцена','next','','',scene==='finish')}</div>${button('Раскрыть результаты','reveal','','dark wide',!isModule||s.phase==='reveal')}
   ${scene==='house'?button('Симуляция · 100 000 бросков','simulate_house','','wide'):''}${scene==='house'&&s.phase==='reveal'&&s.house_sim?`<div class="house-source-controls"><span>На слайде</span>${button(s.demo?'Результаты ботов':'Результаты аудитории','house_view','data-view="audience"',s.house_view!=='simulation'?'primary wide small':'wide small',s.house_view!=='simulation')}${button('Симуляция · 100 000','house_view','data-view="simulation"',s.house_view==='simulation'?'primary wide small':'wide small',s.house_view==='simulation')}</div>`:''}</div>
-  <div class="host-note">${isModule?`<strong>Подсказка ведущему</strong><br>${esc(s.config.modules[scene].note)}`:'Выберите эксперимент вверху. Участники увидят его на своих телефонах.'}</div></div>
+  <div class="host-note">${isModule?`<strong>Подсказка ведущему</strong><br><span data-copy-skip>${esc(s.config.modules[scene].note)}</span>`:'Выберите эксперимент вверху. Участники увидят его на своих телефонах.'}</div></div>
   <div class="panel"><div class="panel-title"><span>${s.demo?'Виртуальная аудитория':'Аудитория'}</span><span class="muted">${s.demo?'20 ботов':s.online+' онлайн'}</span></div><div class="progress-meta"><b>${isModule?progress:s.count}<span>${isModule?' / '+s.count:''}</span></b><span>${isModule?'завершили сцену':'участников в комнате'}</span></div><div class="progress-track"><i style="width:${s.count?100*(isModule?progress:s.count)/s.count:0}%"></i></div><div class="audience-chips">${s.people.filter(p=>p.demo===s.demo).slice(0,25).map(p=>`<span>${esc(p.name)}</span>`).join('')||'<span>Пока никого нет</span>'}</div>${s.demo?`<div class="divider"></div>${demoControls()}`:'<p class="host-fallback-hint">Резерв с ботами доступен во вкладке «Ещё».</p>'}</div></section>
-  <section class="host-tools"><div class="panel"><div class="panel-title">Подключение аудитории</div><img class="qr-mini" src="/api/qr?v=${encodeURIComponent(s.public_url)}" alt="QR-код подключения"><p class="panel-description">Ссылка для телефона</p><div class="join-address">${esc(joinURL())}</div><div class="row">${button('Скопировать ссылку','copy-link','','small')}${button('Настройки','settings','','small')}</div>${!s.public_url&&['localhost','127.0.0.1'].includes(location.hostname)?'<p class="panel-description">Для телефонов укажите в настройках публичный адрес или IP ноутбука.</p>':''}</div>
+  <section class="host-tools"><div class="panel text-editor-entry"><div class="panel-title">Надписи на всех экранах</div><p class="panel-description">Тексты, кнопки и подсказки. Изменения можно проверить до публикации.</p>${button('Редактор надписей','edit-texts','','primary wide')}</div><div class="panel"><div class="panel-title">Подключение аудитории</div><img class="qr-mini" src="/api/qr?v=${encodeURIComponent(s.public_url)}" alt="QR-код подключения"><p class="panel-description">Ссылка для телефона</p><div class="join-address">${esc(joinURL())}</div><div class="row">${button('Скопировать ссылку','copy-link','','small')}${button('Настройки','settings','','small')}</div>${!s.public_url&&['localhost','127.0.0.1'].includes(location.hostname)?'<p class="panel-description">Для телефонов укажите в настройках публичный адрес или IP ноутбука.</p>':''}</div>
   <div class="panel">${!s.demo?demoControls():'<div class="panel-title">Демонстрация включена</div><p class="panel-description">Темп и возврат к аудитории — на вкладке «Управление».</p>'}<div class="divider"></div><div class="panel-title">Программа и резерв</div><p class="panel-description">Скачайте программу и загрузите в локальную копию до выступления.</p><div class="row">${button('Скачать программу','download-program','','small')}${button('Загрузить программу','import-program','','small')}</div></div>
   <div class="panel"><div class="panel-title">Сервисные действия</div><div class="stack"><a class="btn" href="/api/admin/export" download>Скачать результаты</a>${button('Повторить эту сцену','confirm-reset-module','','',!isModule)}${button('Новая сессия','confirm-reset-session','','ghost')}${button('Выйти из пульта','logout','','ghost')}</div></div><div class="panel"><div class="panel-title">Последние действия</div><ul class="log">${s.events.slice(0,5).map(e=>`<li><time>${esc(e.at)}</time><span>${esc(e.text)}</span></li>`).join('')||'<li>Комната готова к выступлению.</li>'}</ul></div></section></div></main>
   <nav class="host-tabs" aria-label="Разделы пульта">${[['controls','Управление'],['preview','Экран'],['tools','Ещё']].map(([id,label])=>`<button data-action="host-tab" data-tab="${id}" aria-pressed="${hostTab===id}" class="${hostTab===id?'active':''}">${label}</button>`).join('')}</nav></div>`;
-  Experience.mount(app,markup);
-  updateProjectorPreview();
+  return markup;
 }
+
+function renderAdmin(){document.title=Copy.text('Пульт ведущего')+' — '+Copy.text('Психология игры');Experience.mount(app,adminMarkup());updateProjectorPreview();}
 
 function updateProjectorPreview() {
   const holder = document.getElementById('slide-preview');
   const frame = document.getElementById('projector-preview');
   const slide = screenMarkup();
-  if (frame._slideMarkup !== slide) {
+  if (frame._slideMarkup !== slide || frame._textGeneration !== Copy.generation) {
+    frame._textGeneration = Copy.generation;
     frame._slideMarkup = slide;
     // Same renderer and stylesheet as /screen, isolated at a real 1280×720 viewport.
     // No scripts, independent state, socket or admin-only data inside this frame.
     if (frame.contentDocument?.querySelector('.screen-shell')) { Experience.mount(frame.contentDocument.body,slide); }
-    else frame.srcdoc = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><base href="${esc(location.origin)}/"><link rel="stylesheet" href="/static/style.css?v=0.3.0"></head><body>${slide}</body></html>`;
+    else frame.srcdoc = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><base href="${esc(location.origin)}/"><link rel="stylesheet" href="/static/style.css?v=0.4.0"></head><body>${Copy.html(slide)}</body></html>`;
   }
   if (observedPreview !== holder) {
     previewObserver?.disconnect();
@@ -199,51 +205,53 @@ function demoControls() {
   return `<div class="fallback-card"><strong>${complete?'Боты завершили сцену':'Виртуальная аудитория'}</strong><p>Темп показа</p><div class="demo-speed" role="group" aria-label="Скорость ботов">${[1,2,4].map(n=>button(`×${n}`,'demo_speed',`data-speed="${n}"`,board.speed===n?'primary small':'small',board.speed===n)).join('')}</div>${state.modules[state.scene]?button('Завершить действия ботов','demo_finish','','small wide',state.phase==='reveal'||complete):''}<p>Оценки восприятия придуманы для примера. Они не показывают реакцию реальных людей.</p>${button('Вернуться к аудитории','clear_demo','','wide small')}</div>`;
 }
 
-function screenMarkup() {
+function screenMarkup(preview=false) {
   const s=state, m=s.modules[s.scene], progress=s.progress[s.scene]||0;
   let content;
-  if (s.scene==='lobby') content=`<div class="screen-lobby"><div class="left"><div class="eyebrow">Интерактивная лаборатория</div><h1>${esc(s.title).replace('под микроскопом','под<br><span>микроскопом.</span>')}</h1><p class="screen-subtitle">Сегодня исследуем, как устроена игра<br>и почему её результат ощущается по-разному.</p><div class="screen-big-count">${s.count}<span>${s.demo?'демо-участников':'участников подключилось'}</span></div></div><div class="${s.demo?'demo-lobby-card':'qr-block'}">${s.demo?'<span class="demo-symbol">20</span><h2>Виртуальная аудитория</h2><p>Наблюдайте за ходом игры.<br>Обсуждайте и делайте прогнозы вслух.</p><small>Примеры ответов вымышлены</small>':`<img src="/api/qr?v=${encodeURIComponent(s.public_url)}" alt="Отсканируйте QR-код для подключения"><strong>Ваш телефон — часть эксперимента</strong><small>${esc(joinURL())}</small>`}</div></div>`;
+  if (s.scene==='lobby') content=`<div class="screen-lobby"><div class="left"><div class="eyebrow">Интерактивная лаборатория</div><h1 data-copy-skip>${displayTitle(s.title)}</h1><p class="screen-subtitle">Сегодня исследуем, как устроена игра<br>и почему её результат ощущается по-разному.</p><div class="screen-big-count">${s.count}<span>${s.demo?'демо-участников':'участников подключилось'}</span></div></div><div class="${s.demo?'demo-lobby-card':'qr-block'}">${s.demo?'<span class="demo-symbol">20</span><h2>Виртуальная аудитория</h2><p>Наблюдайте за ходом игры.<br>Обсуждайте и делайте прогнозы вслух.</p><small>Примеры ответов вымышлены</small>':`<img src="/api/qr?v=${encodeURIComponent(s.public_url)}" alt="Отсканируйте QR-код для подключения"><strong>Ваш телефон — часть эксперимента</strong><small>${esc(joinURL())}</small>`}</div></div>`;
   else if (s.scene==='finish') content=`<div class="screen-heading"><span class="eyebrow">Время обсудить</span><h1>Что изменилось,<br>когда мы увидели<br><span style="color:var(--lime)">всю картину?</span></h1><p class="screen-subtitle">Где заканчивается случайность и начинается дизайн?<br>Как ощущения соотносятся с реальным результатом?</p></div><div class="takeaway">Эти эксперименты показывают отдельные механизмы. Они не объясняют всю зависимость и не являются диагностикой.</div>`;
-  else if (s.phase==='reveal') content=`<div class="screen-heading"><span class="eyebrow">Разбор эксперимента</span><h1 class="result-heading">${esc(m.title)}</h1></div>${resultsContent()}<div class="takeaway">${esc(m.takeaway)}</div>`;
-  else content=Experience.audience(s,()=>render(true));
-  return `<main class="screen-shell" data-scene="${esc(s.scene)}" data-phase="${esc(s.phase)}" data-house-view="${esc(s.house_view||'audience')}"><header class="screen-top">${brand()}<div class="row">${demoTag()}<span class="muted">${s.demo?'Участие с телефонов приостановлено':s.online+' онлайн'}</span>${button('На весь экран','fullscreen','','ghost')}</div></header><div class="screen-content">${content}</div><footer class="screen-bottom"><span>${esc(s.title)}</span><span>${s.demo?'Учебная модель · оценки ботов вымышлены':'Только условные очки · можно просто наблюдать'}</span></footer></main>`;
+  else if (s.phase==='reveal') content=`<div class="screen-heading"><span class="eyebrow">Разбор эксперимента</span><h1 class="result-heading" data-copy-skip>${esc(m.title)}</h1></div>${resultsContent()}<div class="takeaway" data-copy-skip>${esc(m.takeaway)}</div>`;
+  else content=Experience.audience(s,preview?null:()=>render(true),preview);
+  return `<main class="screen-shell" data-scene="${esc(s.scene)}" data-phase="${esc(s.phase)}" data-house-view="${esc(s.house_view||'audience')}"><header class="screen-top">${brand()}<div class="row">${demoTag()}<span class="muted">${s.demo?'Участие с телефонов приостановлено':s.online+' онлайн'}</span>${button('На весь экран','fullscreen','','ghost')}</div></header><div class="screen-content">${content}</div><footer class="screen-bottom"><span data-copy-skip>${esc(s.title)}</span><span>${s.demo?'Учебная модель · оценки ботов вымышлены':'Только условные очки · можно просто наблюдать'}</span></footer></main>`;
 }
 
 function renderScreen() {
-  document.title='Экран аудитории — Психология игры';
+  document.title=Copy.text('Экран аудитории')+' — '+Copy.text('Психология игры');
   Experience.mount(app,screenMarkup());
 }
 
 function waiting(title, text, symbol='◎') { return `<div class="player-card waiting"><div class="waiting-symbol">${symbol}</div><h2>${title}</h2><p>${text}</p></div>`; }
-function renderPlayer() {
+function playerMarkup(preview=false) {
   const s=state, p=s.me, m=s.modules[s.scene];
-  document.title='Участник — Психология игры';
+
   let content;
   if (!p) content=`<div class="player-heading"><span class="eyebrow">Рады видеть вас</span><h1>Всё начинается<br>с вашего выбора.</h1><p>Подключитесь к комнате. Ведущий будет переключать эксперименты, а вы — участвовать с телефона.</p></div><div class="player-card"><form id="join-form" class="stack"><label class="form-field"><span>Как к вам обращаться?</span><input name="name" maxlength="28" autocomplete="off" placeholder="Имя или псевдоним"></label><button class="btn primary wide" type="submit">Присоединиться</button><p class="muted" style="font-size:.82rem">Можно оставить поле пустым. Личные истории и контакты не нужны.</p></form></div>`;
   else if (s.scene==='finish') content=`<div class="player-heading"><span class="eyebrow">Эксперименты завершены</span><h1>Спасибо за<br>ваш взгляд.</h1><p>Теперь обсудим то, что произошло.</p></div>${waiting('Что удивило больше всего?','Подумайте, совпало ли первое впечатление с результатами.','✓')}`;
-  else if (s.scene==='lobby') content=`<div class="player-heading"><span class="eyebrow">Вы в комнате</span><h1>${esc(s.title)}</h1><p>Можно участвовать во всех экспериментах или просто наблюдать.</p></div>${waiting('Скоро начнём','Экран обновится сам, когда ведущий запустит первый эксперимент.')}`;
+  else if (s.scene==='lobby') content=`<div class="player-heading"><span class="eyebrow">Вы в комнате</span><h1 data-copy-skip>${esc(s.title)}</h1><p>Можно участвовать во всех экспериментах или просто наблюдать.</p></div>${waiting('Скоро начнём','Экран обновится сам, когда ведущий запустит первый эксперимент.')}`;
   else {
-    content=`<div class="player-heading"><span class="eyebrow">${s.phase==='reveal'?'Разбор эксперимента':'Эксперимент'}</span><h1>${esc(m.title)}</h1><p>${esc(m.subtitle)}</p></div>`;
-    if (s.phase==='reveal') content+=`<div class="player-card">${resultsContent(true)}<div class="takeaway">${esc(m.takeaway)}</div></div>`;
+    content=`<div class="player-heading"><span class="eyebrow">${s.phase==='reveal'?'Разбор эксперимента':'Эксперимент'}</span><h1 data-copy-skip>${esc(m.title)}</h1><p data-copy-skip>${esc(m.subtitle)}</p></div>`;
+    if (s.phase==='reveal') content+=`<div class="player-card">${resultsContent(true)}<div class="takeaway" data-copy-skip>${esc(m.takeaway)}</div></div>`;
     else if (s.demo) content+=waiting('Наблюдаем вместе','Сейчас на проекторе демонстрация с ботами. Ваши ответы сохранены; можно обсуждать результаты вслух.');
     else if (s.paused) content+=waiting('Небольшая пауза','Ваши ответы сохранены. Послушайте ведущего — скоро продолжим.','Ⅱ');
     else if (s.phase==='intro') content+=waiting('Послушайте ведущего','Кнопки появятся, когда откроется приём ответов.');
-    else if (s.scene==='house') content+=housePlayer(p);
-    else if (s.scene==='near') content+=nearPlayer(p);
+    else if (s.scene==='house') content+=housePlayer(p,preview);
+    else if (s.scene==='near') content+=nearPlayer(p,preview);
   }
-  Experience.mount(app,`<main class="player-shell"><header class="player-header">${brand()}<span class="player-name">${p?esc(p.name):'Участник'}</span></header>${demoTag()}<div class="player-main">${content}</div><footer class="player-footer">Учебная демонстрация · только условные очки<br>Вы можете пропустить любой эксперимент</footer></main>`);
+  return `<main class="player-shell"><header class="player-header">${brand()}<span class="player-name">${p?esc(p.name):'Участник'}</span></header>${demoTag()}<div class="player-main">${content}</div><footer class="player-footer">Учебная демонстрация · только условные очки<br>Вы можете пропустить любой эксперимент</footer></main>`;
 }
 
-function housePlayer(p) {
-  const count=p.house.length, max=state.house_rounds, last=p.house.at(-1), motion=Experience.playerMotion(state,()=>render(true)), spinning=!!motion, complete=count>=max&&!spinning;
+function renderPlayer(){document.title=Copy.text('Участник')+' — '+Copy.text('Психология игры');Experience.mount(app,playerMarkup());}
+
+function housePlayer(p,preview=false) {
+  const count=p.house.length, max=state.house_rounds, last=p.house.at(-1), motion=preview?null:Experience.playerMotion(state,()=>render(true)), spinning=!!motion, complete=count>=max&&!spinning;
   const balance=spinning?p.balance-(last.payout-10):p.balance;
   return `<div class="player-card coin-card"><div class="balance-row"><div><small>Ваш баланс</small><br><strong>${num(balance)}</strong> <small>очков</small></div><span class="tag">${count} / ${max}</span></div><div class="coin-arena">${Experience.coin(last?.outcome||'heads',last?.id||'idle',spinning,motion?.elapsed||0)}<div class="coin-status" aria-live="polite"><strong>${spinning?'Монетка в воздухе…':last?(last.outcome==='heads'?'Орёл':'Решка'):'Ваш следующий бросок'}</strong><span>${spinning?'Каждый бросок независим':last?`Результат ${last.payout?'+9':'−10'} очков`:'Выберите сторону ниже'}</span></div></div><div class="mini-rounds">${Array.from({length:max},(_,i)=>`<i class="${i<count-(spinning?1:0)?'done':''}"></i>`).join('')}</div>${complete?'<div class="game-complete"><h2>Все броски сыграны</h2><p>Сравним личное впечатление с общей картиной.</p></div>':`<div class="choice-grid"><button class="coin-choice" data-action="play" data-choice="heads" ${spinning?'disabled':''}><span class="choice-letter">О</span>Орёл</button><button class="coin-choice" data-action="play" data-choice="tails" ${spinning?'disabled':''}><span class="choice-letter">Р</span>Решка</button></div>`}<p class="game-rule">Ставка 10 · возврат при успехе 19 вместе со ставкой. При неудаче — 0.</p></div>`;
 }
 
-function nearPlayer(p) {
+function nearPlayer(p,preview=false) {
   const remaining=p.near_order.filter(k=>!(k in p.near));
   if(!remaining.length)return waiting('Обе оценки приняты','Послушаем другие впечатления и сравним результаты.','✓');
-  const kind=remaining[0], event=p.near_spins[kind], motion=Experience.playerMotion(state,()=>render(true)), spinning=!!motion;
+  const kind=remaining[0], event=p.near_spins[kind], motion=preview?null:Experience.playerMotion(state,()=>render(true)), spinning=!!motion;
   return `<div class="player-card near-card"><div class="row between"><span class="muted">Ставка: 10 очков</span><span class="tag">Исход ${3-remaining.length} из 2</span></div>${Experience.reels(event?kind:null,event?.id||kind+'-idle',spinning,motion?.elapsed||0)}${!event?`<p class="game-rule">Посмотрите, где остановятся символы. После этого оцените своё впечатление.</p>${button('Запустить барабаны','near_spin',`data-kind="${kind}"`,'primary wide')}`:spinning?'<div class="spin-status" aria-live="polite"><strong>Барабаны останавливаются…</strong><p>Сначала посмотрите на результат</p></div>':`<div class="slot-result"><span>Выплата <b>0</b></span><span>Итог <b>−10</b></span></div><p class="rating-label">Насколько хочется попробовать ещё раз?</p><div class="rating-grid" role="group" aria-label="Оценка от нуля до десяти">${Array.from({length:11},(_,i)=>`<button type="button" class="${selectedRating===i?'selected':''}" aria-pressed="${selectedRating===i}" data-action="rating" data-rating="${i}">${i}</button>`).join('')}</div><div class="rating-ends"><span>0 — совсем не хочется</span><span>10 — очень хочется</span></div>${button('Отправить оценку','near_answer',`data-kind="${kind}"`,'primary wide',selectedRating===null)}`}</div>`;
 }
 
@@ -253,11 +261,11 @@ function openSettings() {
 }
 function drawSettings() {
   const c=configDraft;
-  modal.innerHTML=`<div class="settings-overlay"><section class="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title"><header class="settings-header row between"><h2 id="settings-title">Настройки выступления</h2>${button('Закрыть','close-modal','','small ghost')}</header><form id="settings-form"><label class="form-field"><span>Название</span><input data-config="title" value="${esc(c.title)}" maxlength="90" required></label><label class="form-field"><span>Адрес для телефонов и QR-кода</span><input data-config="public_url" type="url" value="${esc(c.public_url)}" placeholder="https://example.ngrok-free.app"></label><p class="hint">Укажите базовый адрес без /play. Для Wi-Fi подойдёт http://192.168.1.10:8000. Без настройки QR ведёт на адрес, с которого открыт проектор.</p><label class="form-field"><span>Раундов в эксперименте с монеткой</span><input data-config="house_rounds" type="number" min="4" max="20" value="${c.house_rounds}" required></label><div><h3>Состав и порядок программы</h3><p class="hint" style="margin:8px 0">Отключённый модуль исчезнет из последовательности. Порядок можно поменять.</p>${[...c.enabled,...Object.keys(c.modules).filter(k=>!c.enabled.includes(k))].map(id=>`<div class="check-row"><label><input type="checkbox" data-enabled="${id}" ${c.enabled.includes(id)?'checked':''}>${esc(c.modules[id].title)}</label><div class="row" style="gap:3px">${button('Выше','move-module',`data-module="${id}" data-direction="-1"`,'small ghost',c.enabled.indexOf(id)<=0)}${button('Ниже','move-module',`data-module="${id}" data-direction="1"`,'small ghost',!c.enabled.includes(id)||c.enabled.indexOf(id)===c.enabled.length-1)}</div></div>`).join('')}</div><h3>Тексты и заметки</h3>${Object.entries(c.modules).map(([id,m])=>`<details class="settings-module"><summary>${esc(m.title)}</summary><div class="stack"><label class="form-field"><span>Заголовок</span><input data-module-field="${id}.title" value="${esc(m.title)}" maxlength="80" required></label><label class="form-field"><span>Подзаголовок</span><textarea data-module-field="${id}.subtitle" maxlength="180" required>${esc(m.subtitle)}</textarea></label><label class="form-field"><span>Итоговый тезис</span><textarea data-module-field="${id}.takeaway" maxlength="240" required>${esc(m.takeaway)}</textarea></label><label class="form-field"><span>Заметка ведущему (аудитория её не видит)</span><textarea data-module-field="${id}.note" maxlength="1200" required>${esc(m.note)}</textarea></label></div></details>`).join('')}<p class="hint">Изменения текстов применятся сразу после сохранения. Настройки управляют содержанием; ошибки в коде исправляются в файлах проекта.</p><div class="settings-actions">${button('Отмена','close-modal','','')}<button class="btn primary" type="submit">Сохранить изменения</button></div></form></section></div>`;
+  modal.innerHTML=Copy.html(`<div class="settings-overlay"><section class="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title"><header class="settings-header row between"><h2 id="settings-title">Настройки выступления</h2>${button('Закрыть','close-modal','','small ghost')}</header><form id="settings-form"><label class="form-field"><span>Название</span><input data-config="title" value="${esc(c.title)}" maxlength="90" required></label><label class="form-field"><span>Адрес для телефонов и QR-кода</span><input data-config="public_url" type="url" value="${esc(c.public_url)}" placeholder="https://example.ngrok-free.app"></label><p class="hint">Укажите базовый адрес без /play. Для Wi-Fi подойдёт http://192.168.1.10:8000. Без настройки QR ведёт на адрес, с которого открыт проектор.</p><label class="form-field"><span>Раундов в эксперименте с монеткой</span><input data-config="house_rounds" type="number" min="4" max="20" value="${c.house_rounds}" required></label><div><h3>Состав и порядок программы</h3><p class="hint" style="margin:8px 0">Отключённый модуль исчезнет из последовательности. Порядок можно поменять.</p>${[...c.enabled,...Object.keys(c.modules).filter(k=>!c.enabled.includes(k))].map(id=>`<div class="check-row"><label><input type="checkbox" data-enabled="${id}" ${c.enabled.includes(id)?'checked':''}>${esc(c.modules[id].title)}</label><div class="row" style="gap:3px">${button('Выше','move-module',`data-module="${id}" data-direction="-1"`,'small ghost',c.enabled.indexOf(id)<=0)}${button('Ниже','move-module',`data-module="${id}" data-direction="1"`,'small ghost',!c.enabled.includes(id)||c.enabled.indexOf(id)===c.enabled.length-1)}</div></div>`).join('')}</div><h3>Тексты и заметки</h3>${Object.entries(c.modules).map(([id,m])=>`<details class="settings-module"><summary>${esc(m.title)}</summary><div class="stack"><label class="form-field"><span>Заголовок</span><input data-module-field="${id}.title" value="${esc(m.title)}" maxlength="80" required></label><label class="form-field"><span>Подзаголовок</span><textarea data-module-field="${id}.subtitle" maxlength="180" required>${esc(m.subtitle)}</textarea></label><label class="form-field"><span>Итоговый тезис</span><textarea data-module-field="${id}.takeaway" maxlength="240" required>${esc(m.takeaway)}</textarea></label><label class="form-field"><span>Заметка ведущему (аудитория её не видит)</span><textarea data-module-field="${id}.note" maxlength="1200" required>${esc(m.note)}</textarea></label></div></details>`).join('')}<p class="hint">Изменения текстов применятся сразу после сохранения. Настройки управляют содержанием; ошибки в коде исправляются в файлах проекта.</p><div class="settings-actions">${button('Отмена','close-modal','','')}<button class="btn primary" type="submit">Сохранить изменения</button></div></form></section></div>`);
 }
 function confirmDialog(title,text,action) {
   confirmAction=action;
-  modal.innerHTML=`<div class="confirm-wrap"><section class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"><h2 id="confirm-title">${title}</h2><p>${text}</p><div class="row">${button('Отмена','close-modal','','')}${button('Подтвердить','confirm-action','','danger')}</div></section></div>`;
+  modal.innerHTML=Copy.html(`<div class="confirm-wrap"><section class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"><h2 id="confirm-title">${title}</h2><p>${text}</p><div class="row">${button('Отмена','close-modal','','')}${button('Подтвердить','confirm-action','','danger')}</div></section></div>`);
 }
 
 document.addEventListener('input',event=>{
@@ -270,7 +278,7 @@ document.addEventListener('change',async event=>{
   if(event.target.id==='program-file'){
     const file=event.target.files[0]; if(!file||pending)return;
     try {
-      if(file.size>20000)throw new Error('Файл программы слишком большой.');
+      if(file.size>200000)throw new Error('Файл программы слишком большой.');
       const saved=JSON.parse(await file.text());
       if(saved.format!=='ludiki-program-v1'||!saved.config)throw new Error('Выберите файл «Скачать программу» из пульта ведущего.');
       await command('config',{config:saved.config});
@@ -284,6 +292,7 @@ document.addEventListener('change',async event=>{
   drawSettings();
 });
 document.addEventListener('keydown',event=>{
+  if(TextEditor.active)return;
   if(event.key==='Escape' && modal.innerHTML) {modal.innerHTML='';configDraft=null;confirmAction=null;}
   if(event.key==='Tab' && modal.innerHTML) {
     const elements=[...modal.querySelectorAll('button:not(:disabled),input,select,textarea,summary')].filter(e=>e.getClientRects().length);
@@ -298,6 +307,7 @@ document.addEventListener('click',async event=>{
   const a=el.dataset.action;
   if(a==='host-tab'){hostTab=el.dataset.tab;render(true);return;}
   if(a==='near_spin'){await command(a,{kind:el.dataset.kind},true);return;}
+  if(a==='edit-texts'){configDraft=null;TextEditor.open();return;}
   if(a==='settings'){openSettings();modal.querySelector('button')?.focus();return;}
   if(a==='close-modal'){modal.innerHTML='';configDraft=null;confirmAction=null;return;}
   if(a==='move-module'){
@@ -343,7 +353,7 @@ document.addEventListener('submit',async event=>{
   if(pending) return;
   if(form.id==='login-form'){
     const submit=form.querySelector('button[type=submit]');submit.disabled=true;
-    try {await api('/api/admin/login',{password:new FormData(form).get('password')});loggedIn=true;state=await api('/api/state?role=admin');Experience.sync(state);render(true);connect();}
+    try {await api('/api/admin/login',{password:new FormData(form).get('password')});loggedIn=true;state=await api('/api/state?role=admin');Copy.set(state.texts);Experience.sync(state);render(true);connect();}
     catch(err){renderLogin(err.message);}return;
   }
   if(form.id==='join-form'){
@@ -353,13 +363,13 @@ document.addEventListener('submit',async event=>{
   }
   if(form.id==='settings-form'){
     const submit=form.querySelector('button[type=submit]');submit.disabled=true;
-    try {const next=await api('/api/admin/action',{action:'config',config:configDraft});modal.innerHTML='';configDraft=null;accept(next);toast('Изменения сохранены');}
+    try {const next=await api('/api/admin/action',{action:'config',expected_version:configDraft.text_version||0,config:configDraft});modal.innerHTML='';configDraft=null;accept(next);toast('Изменения сохранены');}
     catch(err){toast(err.message);submit.disabled=false;}return;
   }
 });
 
 async function boot() {
-  try {state=await api(`/api/state?role=${role}`);loggedIn=role==='admin';Experience.sync(state);render(true);connect();}
-  catch(err){if(err.status===401&&role==='admin')renderLogin();else{app.innerHTML='<div class="loading">Не удалось подключиться. Проверьте запуск сервера и обновите страницу.</div>';setConnection(err.message);}}
+  try {await Copy.load();state=await api(`/api/state?role=${role}`);loggedIn=role==='admin';Copy.set(state.texts);Experience.sync(state);render(true);connect();}
+  catch(err){if(err.status===401&&role==='admin'){state=await api('/api/state?role=screen');Copy.set(state.texts);renderLogin();}else{app.innerHTML=Copy.html('<div class="loading">Не удалось подключиться. Проверьте запуск сервера и обновите страницу.</div>');setConnection(err.message);}}
 }
 boot();

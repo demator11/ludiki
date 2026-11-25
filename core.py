@@ -5,6 +5,7 @@ import random
 import secrets
 import statistics
 import time
+from texts import validate_texts, apply_text_edit
 
 MODULES = {
     "house": {"title": "По ту сторону казино", "subtitle": "Одна монетка. Два взгляда на результат.", "minutes": "4–5 минут", "note": "Соберите несколько раундов. Раскройте оборот и выплаты, затем запустите большую симуляцию. Короткая сессия вполне может закончиться прибылью игроков.", "takeaway": "Случайность может быть честной. Условия выплат — неравными."},
@@ -37,6 +38,8 @@ class Room:
         self.state.setdefault("revision", 0)
         self.state.setdefault("demo_run", {"speed": 1, "recent": [], "return_to": None})
         self.state.setdefault("activity", [])
+        self.state["config"].setdefault("texts", {})
+        self.state["config"].setdefault("text_version", 0)
         self.state["config"]["enabled"] = [k for k in self.state["config"]["enabled"] if k in ACTIVE_MODULES] or list(ACTIVE_MODULES)
         if self.state["scene"] not in ["lobby", "finish"] + self.state["config"]["enabled"]:
             self.state.update(scene="lobby", phase="intro", paused=False, epoch=secrets.token_hex(8))
@@ -85,12 +88,14 @@ class Room:
                "stats": stats if revealed or role == "admin" else None, "house_view": s["house_view"], "house_sim": s["house_sim"] if revealed or role == "admin" else None, "strategy_sim": s["strategy_sim"] if revealed or role == "admin" else None}
         if role == "admin":
             out.update(config=copy.deepcopy(s["config"]), events=s["events"], people=[{"name": p["name"], "group": p["group"], "demo": p["demo"], "rounds": len(p["house"])} for p in s["players"].values()])
+            out["text_defaults"] = {"title":"Казино под микроскопом", "modules":{k:copy.deepcopy(MODULES[k]) for k in ACTIVE_MODULES}}
             out["config"]["modules"] = {k:v for k,v in out["config"]["modules"].items() if k in ACTIVE_MODULES}
         if role == "participant" and token in s["players"]:
             p = s["players"][token]
             index = p["framing_index"]
             out["me"] = {"name": p["name"], "group": p["group"], "house": p["house"], "balance": 200+sum(x["payout"]-10 for x in p["house"]), "framing_index": index, "framing_total": len(PAYOUTS), "framing_last": PAYOUTS[index-1] if index else None, "framing_answer": p["framing_answer"], "near": p["near"], "near_spins": p["near_spins"], "near_order": ["miss", "near"] if p["group"] == "A" else ["near", "miss"], "strategy": p["strategy"]}
         else: out["me"] = None
+        out["texts"] = s["config"].get("texts", {})
         out["revision"] = s["revision"]
         out["server_time"] = time.time()
         out["live_board"] = self.live_board() if not s["demo"] and s["scene"] in ACTIVE_MODULES else None
@@ -287,7 +292,12 @@ class Room:
                 raise ValueError("Сначала запустите симуляцию.")
             s["house_view"] = view
             self.log("На слайде: " + ("симуляция 100 000 раундов" if view == "simulation" else "результаты аудитории"))
+        elif action == "texts":
+            s["config"] = apply_text_edit(s["config"], data, ACTIVE_MODULES)
+            self.log("Надписи обновлены")
         elif action == "config":
+            if 'expected_version' in data and data['expected_version'] != s['config'].get('text_version',0):
+                raise ValueError('Настройки уже изменились в другом окне. Закройте и снова откройте настройки.')
             config = data.get("config", {})
             if not isinstance(config, dict) or not isinstance(config.get("modules", {}), dict):
                 raise ValueError("Некорректный файл программы.")
@@ -306,14 +316,16 @@ class Room:
             for key in MODULES:
                 fields = config.get("modules", {}).get(key, {})
                 if not isinstance(fields, dict): raise ValueError("Некорректные тексты модуля.")
-                for field, limit in [("title",80),("subtitle",180),("note",1200),("takeaway",240)]:
+                for field, limit in [("title",80),("subtitle",180),("note",1200),("takeaway",240),("minutes",40)]:
                     if field in fields:
                         val = str(fields[field]).strip()
                         if not val or len(val)>limit: raise ValueError(f"Проверьте текст {key}/{field} (до {limit} символов).")
                         modules[key][field] = val
             title = str(config.get("title", "")).strip()
             if not title or len(title)>90: raise ValueError("Название должно содержать 1–90 символов.")
-            s["config"] = {"title":title,"public_url":public_url,"house_rounds":rounds,"enabled":enabled,"modules":modules}
+            texts = validate_texts(config.get("texts", s["config"].get("texts", {})))
+            text_version = s["config"].get("text_version",0)+1
+            s["config"] = {"texts":texts,"text_version":text_version,"title":title,"public_url":public_url,"house_rounds":rounds,"enabled":enabled,"modules":modules}
             if s["scene"] in MODULES and s["scene"] not in enabled: s.update(scene="lobby",phase="intro",paused=False,epoch=secrets.token_hex(8))
             self.log("Настройки сохранены")
         elif action == "demo":

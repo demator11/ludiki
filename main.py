@@ -100,7 +100,7 @@ def require_admin(request):
 
 async def body(request):
     raw = await request.body()
-    if len(raw)>20_000: raise HTTPException(413,"Слишком большой запрос.")
+    if len(raw)>(200_000 if request.url.path=="/api/admin/action" else 20_000): raise HTTPException(413,"Слишком большой запрос.")
     try:
         value=json.loads(raw)
         if not isinstance(value,dict): raise ValueError()
@@ -117,7 +117,7 @@ async def value_error(request,exc): return JSONResponse({"detail":str(exc)},stat
 async def index(): return FileResponse(ROOT/"static"/"index.html",headers={"Cache-Control":"no-cache"})
 
 @app.get("/api/health")
-async def health(): return {"ok":True,"app":"ludiki","version":"0.3.0"}
+async def health(): return {"ok":True,"app":"ludiki","version":"0.4.0"}
 
 @app.get("/api/state")
 async def get_state(request:Request,role:str="participant"):
